@@ -1,0 +1,95 @@
+using System.IO;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace notatnik
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        public MainWindow()
+        {
+            InitializeComponent();
+        }
+
+        private void btnWstaw_Click(object sender, RoutedEventArgs e)
+        {
+            string tekst = txtTekst.Text;
+
+            if (!string.IsNullOrEmpty(tekst))
+            {
+                Run run = new Run(tekst);
+
+                if(chbBold.IsChecked == true)
+                {
+                    run.FontWeight = FontWeights.Bold;
+                }
+
+                if (chbItalic.IsChecked == true)
+                {
+                    run.FontStyle = FontStyles.Italic;
+                }
+
+                if (chbUnderline.IsChecked == true)
+                {
+                    run.TextDecorations = TextDecorations.Underline;
+                }
+
+                Paragraph paragraph = new Paragraph();
+                paragraph.Inlines.Add(run);
+                rtfBox.Document.Blocks.Add(paragraph);
+                txtTekst.Clear();
+            }
+            else {
+                MessageBox.Show("nie podales tekstu w txtBox...","blad", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void btnZapisz_Click(object sender, RoutedEventArgs e)
+        {
+            string file = "plikrtf.rtf";
+            TextRange textRange = new TextRange(rtfBox.Document.ContentStart, rtfBox.Document.ContentEnd);
+            using (FileStream fileStream = new FileStream(file, FileMode.Create))
+            {
+                textRange.Save(fileStream, DataFormats.Rtf);
+            }
+        }
+
+        private void btnOtworz_Click(object sender, RoutedEventArgs e)
+        {
+            string file = "plikrtf.rtf";
+            TextRange textRange = new TextRange(rtfBox.Document.ContentStart, rtfBox.Document.ContentEnd);
+            using (FileStream fileStream = new FileStream(file, FileMode.Open))
+            {
+                textRange.Load(fileStream, DataFormats.Rtf);
+            }
+        }
+
+        private void chbBold_Checked(object sender, RoutedEventArgs e)
+        {
+            TextSelection textSelection = rtfBox.Selection;
+            if (!textSelection.IsEmpty)
+            {
+                textSelection.ApplyPropertyValue(TextElement.FontWeightProperty, FontWeights.Bold);
+            }
+        }
+        private void chbBold_Unhecked(object sender, RoutedEventArgs e)
+        {
+            TextSelection textSelection = rtfBox.Selection;
+            if (!textSelection.IsEmpty)
+            {
+                textSelection.ApplyPropertyValue(TextElement.FontWeightProperty, FontWeights.Normal);
+            }
+        }
+    }
+}
