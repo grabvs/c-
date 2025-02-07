@@ -1,0 +1,57 @@
+using System;
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        string[] kolory = { "czerwony", "niebieski", "zielony", "zolty", "pomaranczowy", "fioletowy", "szary", "indygo" };
+
+        Random random = new Random();
+
+        Console.WriteLine("\nLosowanie z powtorzeniami");
+        for (int i = 0; i < 20; i++)
+        {
+            Console.WriteLine($"proba nr {i + 1}");
+            string[] wylosowanePowt = Enumerable.Range(0, 4).Select(_ => kolory[random.Next(kolory.Length)]).ToArray();
+            string[] zgadywane = Enumerable.Range(0, 4).Select(_ => kolory[random.Next(kolory.Length)]).ToArray();
+            Console.WriteLine($"Losowanie {i}: " + string.Join(",", wylosowanePowt));
+            Console.WriteLine($"Losowanie {i}: " + string.Join(",", zgadywane));
+
+
+            bool?[] wyniki = new bool?[4];
+            bool[] uzyte = new bool[4];
+
+            for (int k = 0; k < wylosowanePowt.Length; i++)
+            {
+                if (wylosowanePowt[k] == zgadywane[k])
+                {
+                    wyniki[k] = true;
+                    uzyte[k] = true;
+                }
+
+            for (k = 0; k < zgadywane.Length; k++)
+                {
+                    if (wyniki[k] != true)
+                    {
+                        for (int j = 0; j < wylosowanePowt.Length; j++)
+                        {
+                            if (!uzyte[j] && zgadywane[k] == wylosowanePowt[j])
+                            {
+                                wyniki[k] = false;
+                                uzyte[k] = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+            }
+
+            for (i=0; i<wylosowanePowt.Length; i++)
+            {
+                Console.WriteLine("odpowiedzi:  + ");
+            }
+
+        }
+    }
+}
