@@ -1,0 +1,384 @@
+using System;
+using System.ComponentModel;
+using System.Data;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
+using System.Security.Claims;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
+using System.Windows.Media.Media3D;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using System.Xml.Linq;
+
+namespace AplikacjaMastermind
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+
+        //Deklaracja tablicy kolorów
+        private readonly Color[] pinColors =
+        {
+Colors.Red,
+Colors.Green,
+Colors.Blue,
+Colors.Orange,
+Colors.Indigo,
+Colors.Yellow,
+Colors.Purple
+};
+
+        private readonly Color[] feedbackCBPins = { Colors.Black, Colors.White };
+
+        private readonly Dictionary<Color, string> polishColors = new Dictionary<Color, string>
+{
+{Colors.Red, "Czerwony"},
+{Colors.Green, "Zielony"},
+{Colors.Blue, "Niebieski"},
+{Colors.Orange, "Pomarańczowy"},
+{Colors.Indigo, "Indigo"},
+{Colors.Yellow, "Żółty"},
+{Colors.Purple, "Fioletowy"},
+};
+
+        //Zmienna przechowująca ukryte i wylosowane kolory
+        private Color[] secretPins;
+
+        private int currentRow = 0;
+
+
+
+        //MAIN
+        public MainWindow()
+        {
+            InitializeComponent();
+            MainBoard.Children.Clear();
+        }
+
+        //Sprawdzanie pinów
+        private void CheckGame_Click(object sender, RoutedEventArgs e)
+        {
+            var activeRow = MainBoard.Children.OfType<StackPanel>()
+            .FirstOrDefault(row => row.Children.OfType<StackPanel>()
+            .FirstOrDefault()?.Children.OfType<Ellipse>()
+            .FirstOrDefault(e => e.IsEnabled) != null);
+
+            if (activeRow == null)
+            {
+                MessageBox.Show("Brak aktywnego wiersza", "Błąd", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var mainCirclePanel = activeRow.Children.OfType<StackPanel>().First();
+            var guessColors = mainCirclePanel.Children.OfType<Ellipse>().Select(e => (e.Fill as SolidColorBrush)?.Color ?? Colors.Gray)
+            .ToArray();
+
+
+            string kolorki = "";
+            foreach (var color in guessColors)
+            {
+                kolorki += polishColors.ContainsKey(color) ? polishColors[color] : color.ToString();
+            }
+
+            //MessageBox.Show($"W: {kolorki}");
+
+
+            foreach (var color in guessColors)
+            {
+                if (color == Colors.Gray)
+                {
+                    MessageBox.Show("Nie pokolorowałeś wszytkich poinów", "Błąd pinów", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+            }
+
+            var (correctPosition, correctColor) = checkPins(guessColors, secretPins);
+            var feedbackPins = activeRow.Children.OfType<Grid>().First();
+
+            foreach (var child in feedbackPins.Children.OfType<Ellipse>())
+            {
+                child.Fill = Brushes.Gray;
+            }
+
+            var feedbackCircles = feedbackPins.Children.OfType<Ellipse>().ToList();
+
+            int feedbackIndex = 0;
+
+            for (int i = 0; i < correctPosition && feedbackIndex < 4; i++, feedbackIndex++)
+            {
+                feedbackCircles[feedbackIndex].Fill = new SolidColorBrush(feedbackCBPins[0]);
+            }
+
+            for (int i = 0; i < correctColor && feedbackIndex < 4; i++, feedbackIndex++)
+            {
+                feedbackCircles[feedbackIndex].Fill = new SolidColorBrush(feedbackCBPins[1]);
+            }
+
+            foreach (var ellipse in mainCirclePanel.Children.OfType<Ellipse>())
+            {
+                ellipse.IsEnabled = false;
+            }
+
+            var nextRow = MainBoard.Children.OfType<StackPanel>().FirstOrDefault(row => (int)row.Tag > (int)activeRow.Tag);
+
+            if (nextRow != null)
+            {
+                var nextMainCirclePanel = nextRow.Children.OfType<StackPanel>().First();
+                foreach (var ellipse in nextMainCirclePanel.Children.OfType<Ellipse>())
+                {
+                    ellipse.IsEnabled = true;
+                }
+            }
+
+            if (correctPosition == 4)
+            {
+                MessageBox.Show("Wygrałeś", "Wygrana", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+            }
+            else if (correctPosition == null)
+            {
+                MessageBox.Show("Przegrałeś", "Przegrana", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+            }
+
+        }
+
+        private (int correctPositions, int correctColors) checkPins(Color[] guess, Color[] secret)
+        {
+            int correctPositions = 0;
+            int correctColors = 0;
+
+            var guessMatched = new bool[4];
+            var secretMatched = new bool[4];
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (guess[i] == secret[i])
+                {
+                    correctPositions++;
+                    guessMatched[i] = true;
+                    secretMatched[i] = true;
+                }
+            }
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (guessMatched[i]) continue;
+                for (int j = 0; j < 4; j++)
+                {
+                    if (secretMatched[j]) continue;
+                    if (guess[i] == secret[j])
+                    {
+                        correctColors++;
+                        secretMatched[j] = true;
+                        break;
+                    }
+                }
+            }
+            return (correctPositions, correctColors);
+
+
+        }
+
+        //Nowa gra
+        private void MenuNew(object sender, RoutedEventArgs e)
+        {
+            var PinSelect = MessageBox.Show("Chcesz losować piny z powtórzeniami?", "Wybór", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (PinSelect == MessageBoxResult.Yes)
+            {
+                secretPinsGenerator();
+            }
+            else
+            {
+                secretPinsGenerator2();
+            }
+            newBoard();
+        }
+
+        // Nowa plansza do gry
+        private void newBoard()
+        {
+            MainBoard.Children.Clear();
+
+            for (int i = 0; i < 10; i++)
+            {
+                // Tworzenie wiersza
+                StackPanel rowPanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Margin = new Thickness(5),
+                    Tag = i
+                };
+
+                // Panel z głównymi pinami
+                StackPanel mainCirclePanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal
+                };
+
+                // Ustawienie aktywności pinów na podstawie wiersza
+                if (i != 9)
+                {
+                    for (int j = 0; j < 4; j++)
+                    {
+                        mainCirclePanel.Children.Add(createCircle(30, false, true));
+                    }
+                }
+                else
+                {
+                    for (int j = 0; j < 4; j++)
+                    {
+                        mainCirclePanel.Children.Add(createCircle(30, true, true));
+                    }
+                    currentRow = 9;
+                }
+
+                // Grid na piny z odpowiedzią
+                Grid feedbackGrid = new Grid
+                {
+                    Width = 60,
+                    Height = 60,
+                    Margin = new Thickness(10, 0, 0, 0)
+                };
+
+                // Definicje rzędów i kolumn w FeedbackGrid
+                feedbackGrid.RowDefinitions.Add(new RowDefinition());
+                feedbackGrid.RowDefinitions.Add(new RowDefinition());
+                feedbackGrid.ColumnDefinitions.Add(new ColumnDefinition());
+                feedbackGrid.ColumnDefinitions.Add(new ColumnDefinition());
+
+                // Tworzenie FeedbackCircle
+                for (int x = 0; x < 2; x++)
+                {
+                    for (int y = 0; y < 2; y++)
+                    {
+                        Ellipse feedbackCircle = createCircle(20, true, false);
+                        Grid.SetRow(feedbackCircle, x);
+                        Grid.SetColumn(feedbackCircle, y);
+                        feedbackGrid.Children.Add(feedbackCircle);
+                    }
+                }
+
+                // Dodawanie elementów do wiersza
+                rowPanel.Children.Add(mainCirclePanel);
+                rowPanel.Children.Add(feedbackGrid);
+
+                // Dodanie wiersza do MainBoard
+                MainBoard.Children.Add(rowPanel);
+            }
+        }
+
+
+
+        //Wybór kolorów pinów
+        private void openColorPicker(Ellipse circle, Color[] openColors)
+        {
+            if (!circle.IsEnabled || circle == null) return;
+
+            ContextMenu colorMenu = new ContextMenu();
+            foreach (Color color in openColors)
+            {
+                MenuItem item = new MenuItem
+                {
+                    Header = polishColors.ContainsKey(color) ? polishColors[color] : color.ToString(),
+                    Background = new SolidColorBrush(color)
+                };
+                //nasłuch na klikniecie z wyborem koloru i zmianą koloru
+                item.Click += (s, e) => circle.Fill = new SolidColorBrush(color);
+                colorMenu.Items.Add(item);
+            }
+
+            circle.ContextMenu = colorMenu;
+            colorMenu.IsOpen = true;
+
+        }
+
+        //Tworzenie pinów
+        private Ellipse createCircle(int size, bool isVisible, bool isMainCircle)
+        {
+            Ellipse circle = new Ellipse
+            {
+                Width = size,
+                Height = size,
+                Fill = new SolidColorBrush(Colors.LightGray),
+                Stroke = Brushes.Black,
+                StrokeThickness = 1,
+                Margin = new Thickness(5),
+                IsEnabled = isVisible
+            };
+
+            //Wywołanie click na mysz by dodać kolor
+            if (isMainCircle)
+            {
+                circle.MouseLeftButtonDown += (s, e) => openColorPicker(s as Ellipse, pinColors);
+            }
+            else
+            {
+                circle.MouseLeftButtonDown += (s, e) => openColorPicker(s as Ellipse, new Color[] { Colors.White, Colors.Black });
+            }
+            return circle;
+        }
+
+        //Metoda generująca piny z powtórzeniami
+        private void secretPinsGenerator()
+        {
+            Random random = new Random();
+            secretPins = Enumerable.Range(0, 4).Select(_ => pinColors[random.Next(pinColors.Length)]).ToArray();
+
+            string kolorki = "";
+            foreach (var color in secretPins)
+            {
+                kolorki += polishColors.ContainsKey(color) ? polishColors[color] : color.ToString();
+            }
+
+            losowane.Text = ($"W: {kolorki} ");
+        }
+
+        //Metoda generująca piny bez powtórzeń
+        private void secretPinsGenerator2()
+        {
+            Random random = new Random();
+            secretPins = pinColors.OrderBy(_ => random.Next()).Take(4).ToArray();
+            string kolorki = "";
+            foreach (var color in secretPins)
+            {
+                kolorki += polishColors.ContainsKey(color) ? polishColors[color] : color.ToString();
+            }
+
+            losowane.Text = ($"W: {kolorki}");
+        }
+        //Zakończenie programu poprzez X
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            var odp = MessageBox.Show("Czy chcesz zakończyć grę?", "Zakończ", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (odp != MessageBoxResult.Yes)
+            {
+                e.Cancel = true;
+            }
+            base.OnClosing(e);
+        }
+
+        //Zakończenie programu poprzez menu wywołując nadpisaną metodę OnClosing ^^
+        private void MenuEnd(object sender, RoutedEventArgs e)
+        {
+            this.Close();
+        }
+
+        private void oprogramie(object sender, RoutedEventArgs e)
+        {
+             MessageBox.Show("Mastermind" +
+                "Wersja 1.0" +
+                "2025 @ Bartłomiej Grabowski" +
+                "email@gmail.com" + MessageBoxButton.OK);
+        }
+    }
+}
+
